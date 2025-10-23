@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Expense Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-receipt me-2"></i>Expense Management</h2>
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+    </a>
+</div>
+
+<!-- Financial Summary -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                <h5>Total Revenue</h5>
+                <div class="stats-number">₹{{ total_revenue }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
+                <h5>Total Expenses</h5>
+                <div class="stats-number">₹{{ total_expenses }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x text-{{ 'success' if profit >= 0 else 'danger' }} mb-2"></i>
+                <h5>Net Profit</h5>
+                <div class="stats-number text-{{ 'success' if profit >= 0 else 'danger' }}">₹{{ profit }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Expense Form -->
+<div class="card mb-4">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+        <h4 class="mb-0"><i class="fas fa-plus me-2"></i>Add New Expense</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('add_expense') }}">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" name="description" required>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label">Amount (₹)</label>
+                        <input type="number" class="form-control" name="amount" step="0.01" required>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" name="category" required>
+                            <option value="ingredients">Ingredients</option>
+                            <option value="utilities">Utilities</option>
+                            <option value="staff">Staff</option>
+                            <option value="equipment">Equipment</option>
+                            <option value="rent">Rent</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-plus me-1"></i>Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Expenses List -->
+<div class="card">
+    <div class="card-header">
+        <h4 class="mb-0"><i class="fas fa-list me-2"></i>Expense Records</h4>
+    </div>
+    <div class="card-body">
+        {% if expenses %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expense in expenses %}
+                    <tr>
+                        <td>{{ expense.expense_date[:16] }}</td>
+                        <td><strong>{{ expense.description }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ expense.category.title() }}</span></td>
+                        <td class="fw-bold text-danger">₹{{ expense.amount }}</td>
+                        <td>
+                            <a href="{{ url_for('delete_expense', expense_id=expense.expense_id) }}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               onclick="return confirm('Are you sure you want to delete this expense?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No expenses recorded yet</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Form validation
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const amount = parseFloat(document.querySelector('input[name="amount"]').value);
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('Amount must be greater than 0');
+        }
+    });
+});
+</script>
+{% endblock %}

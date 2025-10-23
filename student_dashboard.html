@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-user me-2"></i>Welcome, {{ session.user_name }}!</h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 col-md-12">
+        <div class="card mb-4">
+            <div class="card-header text-white" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+                <h4 class="mb-0"><i class="fas fa-utensils me-2"></i>Today's Menu</h4>
+            </div>
+            <div class="card-body">
+                <!-- Category Filter -->
+                <div class="mb-3">
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-outline-primary active" onclick="filterMenu('all')">All</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="filterMenu('main')">Main</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="filterMenu('appetizer')">Appetizer</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="filterMenu('fast_food')">Fast Food</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="filterMenu('dessert')">Dessert</button>
+                        <button type="button" class="btn btn-outline-primary" onclick="filterMenu('beverage')">Beverage</button>
+                    </div>
+                </div>
+                
+                <div class="row" id="menuContainer">
+                    {% for item in menu_items %}
+                    <div class="col-lg-6 col-md-6 col-sm-12 mb-3 menu-item" data-category="{{ item.category }}">
+                        <div class="card h-100 menu-item-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="card-title mb-1">{{ item.item_name }}</h5>
+                                    <span class="badge bg-{{ 'primary' if item.category == 'main' else 'success' if item.category == 'appetizer' else 'warning' if item.category == 'fast_food' else 'info' if item.category == 'dessert' else 'secondary' }}">{{ item.category.replace('_', ' ').title() }}</span>
+                                </div>
+                                <p class="card-text text-muted small mb-3">{{ item.description }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="h5 text-primary mb-0">₹{{ item.price }}</span>
+                                    <button class="btn btn-primary" onclick="addToCart({{ item.item_id }}, '{{ item.item_name }}', {{ item.price }})">
+                                        <i class="fas fa-plus me-1"></i>Add
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-12">
+        <!-- Cart Section -->
+        <div class="card mb-4 sticky-top" style="top: 1rem;">
+            <div class="card-header text-white" style="background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);">
+                <h4 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Your Cart</h4>
+            </div>
+            <div class="card-body">
+                <div id="cartItems">
+                    <p class="text-center text-muted">Your cart is empty</p>
+                </div>
+                <div class="d-grid mt-3">
+                    <button class="btn btn-primary btn-lg" onclick="placeOrder()">
+                        <i class="fas fa-credit-card me-2"></i>Place Order
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Order History -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-history me-2"></i>Order History</h4>
+            </div>
+            <div class="card-body">
+                {% if user_orders %}
+                    {% for order in user_orders %}
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>Order #{{ order.order_id }}</strong>
+                            <span class="badge bg-{{ 'primary' if order.order_status == 'Pending' else 'warning' if order.order_status == 'Preparing' else 'success' }}">
+                                {{ order.order_status }}
+                            </span>
+                        </div>
+                        <small class="text-muted">₹{{ order.total_amount }} • {{ order.order_time[:16] }}</small>
+                        <div class="mt-1 d-flex gap-2">
+                            {% if order.payment_status == 'Paid' %}
+                                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('download_invoice_pdf', order_id=order.order_id) }}">
+                                    <i class="fas fa-file-download me-1"></i>Invoice (PDF)
+                                </a>
+                            {% else %}
+                                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('payment_page', order_id=order.order_id) }}">
+                                    <i class="fas fa-credit-card me-1"></i>Pay Now
+                                </a>
+                            {% endif %}
+                        </div>
+                        {% if order.order_status == 'Preparing' %}
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small class="text-info">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Est. {{ order.estimated_time }} min
+                                </small>
+                                <small class="text-muted" id="remaining-time-{{ order.order_id }}">
+                                    Calculating...
+                                </small>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" 
+                                     id="order-progress-{{ order.order_id }}"
+                                     style="width: 0%"
+                                     data-order-id="{{ order.order_id }}">
+                                </div>
+                            </div>
+                        </div>
+                        {% elif order.order_status == 'Ready' %}
+                        <div class="mt-1">
+                            <div class="alert alert-success py-2 mb-0">
+                                <i class="fas fa-check-circle me-1"></i>
+                                <strong>Ready for pickup!</strong>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-muted">No orders yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden form for order submission -->
+<form id="orderForm" method="POST" action="{{ url_for('place_order') }}" style="display: none;">
+    <input type="hidden" name="items" id="orderItems">
+    <input type="hidden" name="total_amount" id="orderTotal">
+</form>
+
+<script>
+let cart = [];
+
+function addToCart(itemId, itemName, price) {
+    const existingItem = cart.find(item => item.id === itemId);
+    
+    if (existingItem) {
+        existingItem.quantity += 1;
+    } else {
+        cart.push({
+            id: itemId,
+            name: itemName,
+            price: price,
+            quantity: 1
+        });
+    }
+    
+    updateCartDisplay();
+    showToast(`${itemName} added to cart!`, 'success');
+}
+
+function updateCartDisplay() {
+    const cartContainer = document.getElementById('cartItems');
+    
+    if (cart.length === 0) {
+        cartContainer.innerHTML = '<p class="text-center text-muted">Your cart is empty</p>';
+        return;
+    }
+    
+    let cartHTML = '';
+    let total = 0;
+    
+    cart.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        
+        cartHTML += `
+            <div class="d-flex justify-content-between align-items-center mb-2 cart-item">
+                <div>
+                    <small><strong>${item.name}</strong></small><br>
+                    <small class="text-muted">₹${item.price} × ${item.quantity}</small>
+                </div>
+                <div>
+                    <span class="fw-bold">₹${itemTotal}</span>
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="removeFromCart(${item.id})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    cartHTML += `<hr><div class="d-flex justify-content-between"><strong>Total:</strong><strong>₹${total}</strong></div>`;
+    cartContainer.innerHTML = cartHTML;
+}
+
+function removeFromCart(itemId) {
+    cart = cart.filter(item => item.id !== itemId);
+    updateCartDisplay();
+    showToast('Item removed from cart!', 'info');
+}
+
+function placeOrder() {
+    if (cart.length === 0) {
+        showToast('Your cart is empty!', 'warning');
+        return;
+    }
+    
+    if (confirm('Are you sure you want to place this order?')) {
+        document.getElementById('orderItems').value = JSON.stringify(cart);
+        document.getElementById('orderTotal').value = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        document.getElementById('orderForm').submit();
+    }
+}
+
+function filterMenu(category) {
+    const menuItems = document.querySelectorAll('.menu-item');
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    
+    // Update button states
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Filter items
+    menuItems.forEach(item => {
+        if (category === 'all' || item.dataset.category === category) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// Initialize cart from localStorage if available
+document.addEventListener('DOMContentLoaded', function() {
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+        cart = JSON.parse(savedCart);
+        updateCartDisplay();
+    }
+});
+
+// Save cart to localStorage whenever it changes
+function saveCart() {
+    localStorage.setItem('cart', JSON.stringify(cart));
+}
+
+// Override cart functions to save to localStorage
+const originalAddToCart = addToCart;
+const originalRemoveFromCart = removeFromCart;
+
+addToCart = function(itemId, itemName, price) {
+    originalAddToCart(itemId, itemName, price);
+    saveCart();
+};
+
+removeFromCart = function(itemId) {
+    originalRemoveFromCart(itemId);
+    saveCart();
+};
+
+// Mobile-specific enhancements
+document.addEventListener('DOMContentLoaded', function() {
+    // Add mobile cart toggle for small screens
+    if (window.innerWidth <= 991) {
+        addMobileCartToggle();
+    }
+    
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        if (window.innerWidth <= 991) {
+            addMobileCartToggle();
+        } else {
+            removeMobileCartToggle();
+        }
+    });
+    
+    // Add swipe gesture for category filters
+    addSwipeToFilters();
+});
+
+function addMobileCartToggle() {
+    // Check if toggle already exists
+    if (document.getElementById('mobileCartToggle')) return;
+    
+    // Create mobile cart toggle button
+    const toggleButton = document.createElement('button');
+    toggleButton.id = 'mobileCartToggle';
+    toggleButton.className = 'mobile-cart-toggle';
+    toggleButton.innerHTML = '<i class="fas fa-shopping-cart"></i><span class="cart-badge" id="cartBadge" style="display: none;">0</span>';
+    toggleButton.onclick = toggleMobileCart;
+    
+    // Create mobile cart sticky container
+    const mobileCart = document.createElement('div');
+    mobileCart.id = 'mobileCartSticky';
+    mobileCart.className = 'mobile-cart-sticky';
+    mobileCart.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Your Cart</h5>
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleMobileCart()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="mobileCartItems">
+            <p class="text-center text-muted">Your cart is empty</p>
+        </div>
+        <div class="d-grid mt-2">
+            <button class="btn btn-primary" onclick="placeOrder()">
+                <i class="fas fa-credit-card me-2"></i>Place Order
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(toggleButton);
+    document.body.appendChild(mobileCart);
+    
+    // Hide original cart on mobile
+    const originalCart = document.querySelector('.col-lg-4');
+    if (originalCart) {
+        originalCart.style.display = 'none';
+    }
+}
+
+function removeMobileCartToggle() {
+    const toggle = document.getElementById('mobileCartToggle');
+    const cart = document.getElementById('mobileCartSticky');
+    
+    if (toggle) toggle.remove();
+    if (cart) cart.remove();
+    
+    // Show original cart
+    const originalCart = document.querySelector('.col-lg-4');
+    if (originalCart) {
+        originalCart.style.display = 'block';
+    }
+}
+
+function toggleMobileCart() {
+    const mobileCart = document.getElementById('mobileCartSticky');
+    if (mobileCart) {
+        mobileCart.classList.toggle('show');
+        // Update mobile cart content
+        updateMobileCartDisplay();
+    }
+}
+
+function updateMobileCartDisplay() {
+    const mobileCartContainer = document.getElementById('mobileCartItems');
+    if (!mobileCartContainer) return;
+    
+    // Copy content from main cart
+    const mainCartContent = document.getElementById('cartItems').innerHTML;
+    mobileCartContainer.innerHTML = mainCartContent;
+    
+    // Update cart badge
+    const badge = document.getElementById('cartBadge');
+    if (badge) {
+        const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+        if (itemCount > 0) {
+            badge.textContent = itemCount;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function addSwipeToFilters() {
+    const filterContainer = document.querySelector('.btn-group');
+    if (!filterContainer) return;
+    
+    filterContainer.classList.add('swipe-container');
+    
+    let startX = 0;
+    let scrollLeft = 0;
+    
+    filterContainer.addEventListener('touchstart', function(e) {
+        startX = e.touches[0].pageX - filterContainer.offsetLeft;
+        scrollLeft = filterContainer.scrollLeft;
+    });
+    
+    filterContainer.addEventListener('touchmove', function(e) {
+        if (!startX) return;
+        
+        e.preventDefault();
+        const x = e.touches[0].pageX - filterContainer.offsetLeft;
+        const walk = (x - startX) * 2;
+        filterContainer.scrollLeft = scrollLeft - walk;
+    });
+    
+    filterContainer.addEventListener('touchend', function() {
+        startX = 0;
+    });
+}
+
+// Override the original updateCartDisplay to also update mobile cart
+const originalUpdateCartDisplay = updateCartDisplay;
+updateCartDisplay = function() {
+    originalUpdateCartDisplay();
+    updateMobileCartDisplay();
+};
+
+// Real-time order tracking for students
+function initOrderTracking() {
+    const progressBars = document.querySelectorAll('[id^="order-progress-"]');
+    
+    progressBars.forEach(bar => {
+        const orderId = bar.dataset.orderId;
+        if (orderId) {
+            trackOrderStatus(orderId);
+        }
+    });
+}
+
+function trackOrderStatus(orderId) {
+    // Update order status every 10 seconds
+    const updateInterval = setInterval(() => {
+        fetch(`/api/order-status/${orderId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateOrderDisplay(orderId, data);
+                    
+                    // Stop tracking if order is completed or ready
+                    if (data.status === 'Ready' || data.status === 'Completed') {
+                        clearInterval(updateInterval);
+                        showOrderNotification(orderId, data.status);
+                    }
+                } else {
+                    console.log(`Failed to get status for order ${orderId}`);
+                }
+            })
+            .catch(error => {
+                console.log(`Error tracking order ${orderId}:`, error);
+            });
+    }, 10000);
+    
+    // Store interval for cleanup
+    if (!window.orderIntervals) {
+        window.orderIntervals = {};
+    }
+    window.orderIntervals[orderId] = updateInterval;
+}
+
+function updateOrderDisplay(orderId, orderData) {
+    const progressBar = document.getElementById(`order-progress-${orderId}`);
+    const remainingTimeElement = document.getElementById(`remaining-time-${orderId}`);
+    
+    if (progressBar) {
+        progressBar.style.width = `${orderData.progress}%`;
+        
+        // Update progress bar color based on progress
+        if (orderData.progress < 50) {
+            progressBar.className = 'progress-bar bg-success progress-bar-striped progress-bar-animated';
+        } else if (orderData.progress < 80) {
+            progressBar.className = 'progress-bar bg-warning progress-bar-striped progress-bar-animated';
+        } else if (orderData.progress < 100) {
+            progressBar.className = 'progress-bar bg-danger progress-bar-striped progress-bar-animated';
+        } else {
+            progressBar.className = 'progress-bar bg-danger';
+        }
+    }
+    
+    if (remainingTimeElement) {
+        const remainingMinutes = Math.max(0, orderData.remaining_time);
+        if (remainingMinutes > 0) {
+            remainingTimeElement.textContent = `~${Math.ceil(remainingMinutes)} min remaining`;
+            remainingTimeElement.className = 'text-muted';
+        } else {
+            remainingTimeElement.textContent = 'Should be ready!';
+            remainingTimeElement.className = 'text-success fw-bold';
+        }
+    }
+}
+
+function showOrderNotification(orderId, status) {
+    let message = '';
+    let type = 'info';
+    
+    if (status === 'Ready') {
+        message = `🎉 Order #${orderId} is ready for pickup!`;
+        type = 'success';
+        playNotificationSound();
+    } else if (status === 'Completed') {
+        message = `✅ Order #${orderId} has been completed.`;
+        type = 'success';
+    }
+    
+    if (message) {
+        showToast(message, type);
+        
+        // Show browser notification if supported
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('Smart Canteen', {
+                body: message,
+                icon: '/static/favicon.ico',
+                tag: `order-${orderId}`
+            });
+        }
+    }
+}
+
+function playNotificationSound() {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 600;
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.2;
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+        console.log('Audio notification not supported');
+    }
+}
+
+// Request notification permission
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+}
+
+// Enhanced DOMContentLoaded event
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing mobile cart functionality
+    if (window.innerWidth <= 991) {
+        addMobileCartToggle();
+    }
+    
+    window.addEventListener('resize', function() {
+        if (window.innerWidth <= 991) {
+            addMobileCartToggle();
+        } else {
+            removeMobileCartToggle();
+        }
+    });
+    
+    addSwipeToFilters();
+    
+    // New order tracking functionality
+    initOrderTracking();
+    requestNotificationPermission();
+});
+
+// Cleanup intervals when page unloads
+window.addEventListener('beforeunload', function() {
+    if (window.orderIntervals) {
+        Object.values(window.orderIntervals).forEach(interval => {
+            clearInterval(interval);
+        });
+    }
+});
+</script>
+{% endblock %}

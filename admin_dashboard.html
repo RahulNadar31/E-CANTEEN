@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard</h2>
+    <div>
+        <a href="{{ url_for('verify_users') }}" class="btn btn-warning me-2">
+            <i class="fas fa-user-check me-1"></i>Verify Users
+        </a>
+        <a href="{{ url_for('menu_management') }}" class="btn btn-info me-2">
+            <i class="fas fa-utensils me-1"></i>Manage Menu
+        </a>
+        <a href="{{ url_for('expense_management') }}" class="btn btn-success me-2">
+            <i class="fas fa-receipt me-1"></i>Expenses
+        </a>
+        <a href="{{ url_for('admin_export', type='csv') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-file-csv me-1"></i>Export CSV
+        </a>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h5>Total Users</h5>
+                <div class="stats-number">{{ total_users }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                <h5>Pending Verifications</h5>
+                <div class="stats-number">{{ pending_verifications }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-shopping-cart fa-2x text-success mb-2"></i>
+                <h5>Total Orders</h5>
+                <div class="stats-number">{{ total_orders }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-rupee-sign fa-2x text-success mb-2"></i>
+                <h5>Total Revenue</h5>
+                <div class="stats-number">₹{{ total_revenue }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-receipt fa-2x text-warning mb-2"></i>
+                <h5>Total Expenses</h5>
+                <div class="stats-number">₹{{ total_expenses }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x text-{{ 'success' if profit >= 0 else 'danger' }} mb-2"></i>
+                <h5>Net Profit</h5>
+                <div class="stats-number text-{{ 'success' if profit >= 0 else 'danger' }}">₹{{ profit }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="card">
+    <div class="card-header">
+        <h4 class="mb-0"><i class="fas fa-list me-2"></i>Recent Orders</h4>
+    </div>
+    <div class="card-body">
+        {% if recent_orders %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Payment</th>
+                        <th>Order Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td>#{{ order.order_id }}</td>
+                        <td>{{ order.name }}</td>
+                        <td>₹{{ order.total_amount }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if order.payment_status == 'Paid' else 'warning' }}">
+                                {{ order.payment_status }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ 'primary' if order.order_status == 'Pending' else 'warning' if order.order_status == 'Preparing' else 'success' }}">
+                                {{ order.order_status }}
+                            </span>
+                        </td>
+                        <td>{{ order.order_time[:16] }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="updateOrderStatus({{ order.order_id }}, 'Preparing')">
+                                    <i class="fas fa-clock"></i>
+                                </button>
+                                <button class="btn btn-outline-success" onclick="updateOrderStatus({{ order.order_id }}, 'Ready')">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No recent orders</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function updateOrderStatus(orderId, status) {
+    if (confirm(`Are you sure you want to update order #${orderId} to ${status}?`)) {
+        fetch(`/admin/update-order-status/${orderId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: status })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(`Order #${orderId} updated to ${status}`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Failed to update order status', 'danger');
+            }
+        })
+        .catch(error => {
+            showToast('Error updating order status', 'danger');
+        });
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+</script>
+{% endblock %}

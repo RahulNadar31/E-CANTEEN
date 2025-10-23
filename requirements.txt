@@ -1,0 +1,6 @@
+Flask==2.3.3
+Werkzeug==2.3.7
+openpyxl==3.1.5
+Pillow==10.4.0
+razorpay==1.4.2
+reportlab==4.2.2

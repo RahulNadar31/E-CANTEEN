@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}Kitchen Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-utensils me-2"></i>Kitchen Dashboard</h2>
+    <div class="text-muted">
+        <i class="fas fa-user me-1"></i>Welcome, {{ session.user_name }}!
+    </div>
+</div>
+
+<!-- Kitchen Stats -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                <h5>Pending Orders</h5>
+                <div class="stats-number">{{ pending_orders|length }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-fire fa-2x text-danger mb-2"></i>
+                <h5>Preparing</h5>
+                <div class="stats-number">{{ preparing_orders|length }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                <h5>Ready</h5>
+                <div class="stats-number">{{ ready_orders|length }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-12 mt-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Top Selling Items</h5>
+            </div>
+            <div class="card-body">
+                {% if top_sellers and top_sellers|length > 0 %}
+                <ul class="list-group">
+                    {% for it in top_sellers %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ it.name }}
+                        <span class="badge bg-primary rounded-pill">{{ it.quantity }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted mb-0">No sales data yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Orders -->
+<div class="card mb-4">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+        <h4 class="mb-0"><i class="fas fa-clock me-2"></i>Pending Orders</h4>
+    </div>
+    <div class="card-body">
+        {% if pending_orders %}
+        <div class="row">
+            {% for order in pending_orders %}
+            <div class="col-md-6 mb-3">
+                <div class="card border-warning">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title">Order #{{ order.order_id }}</h5>
+                            <span class="badge bg-warning">{{ order.order_status }}</span>
+                        </div>
+                        <p class="card-text">
+                            <strong>Customer:</strong> {{ order.customer_name }}<br>
+                            <strong>Amount:</strong> ₹{{ order.total_amount }}<br>
+                            <strong>Order Time:</strong> {{ order.order_time[:16] }}
+                        </p>
+                        
+                        <!-- Order Items -->
+                        <div class="mb-3">
+                            <strong>Items:</strong>
+                            <ul class="list-unstyled mt-1">
+                                {% for item in order.items_parsed %}
+                                <li class="small">• {{ item.name }} (Qty: {{ item.quantity }})</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <!-- Set Preparation Time -->
+                        <form method="POST" action="{{ url_for('set_preparation_time', order_id=order.order_id) }}" class="mb-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">⏱️</span>
+                                <input type="number" class="form-control" name="estimated_time" 
+                                       value="{{ order.estimated_time }}" min="5" max="60" required>
+                                <span class="input-group-text">min</span>
+                                <button class="btn btn-outline-primary btn-sm" type="submit">
+                                    <i class="fas fa-save"></i>
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div class="d-grid">
+                            <a href="{{ url_for('start_preparation', order_id=order.order_id) }}" 
+                               class="btn btn-warning">
+                                <i class="fas fa-play me-1"></i>Start Preparation
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No pending orders</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Preparing Orders -->
+<div class="card mb-4">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);">
+        <h4 class="mb-0"><i class="fas fa-fire me-2"></i>Currently Preparing</h4>
+    </div>
+    <div class="card-body">
+        {% if preparing_orders %}
+        <div class="row">
+            {% for order in preparing_orders %}
+            <div class="col-md-6 mb-3">
+                <div class="card border-danger">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title">Order #{{ order.order_id }}</h5>
+                            <span class="badge bg-danger">{{ order.order_status }}</span>
+                        </div>
+                        <p class="card-text">
+                            <strong>Customer:</strong> {{ order.customer_name }}<br>
+                            <strong>Amount:</strong> ₹{{ order.total_amount }}<br>
+                            <strong>Started:</strong> {{ order.preparation_started[:16] if order.preparation_started else 'N/A' }}
+                        </p>
+                        
+                        <!-- Real-time Timer and Progress -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Est. Time: {{ order.estimated_time }} min
+                                </small>
+                                <div class="timer-display" 
+                                     id="timer-{{ order.order_id }}" 
+                                     data-start-time="{{ order.preparation_started }}"
+                                     data-estimated-time="{{ order.estimated_time }}">
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-hourglass-half me-1"></i>
+                                        <span class="timer-text">00:00</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-danger progress-bar-striped progress-bar-animated timer-progress" 
+                                     role="progressbar" 
+                                     id="progress-{{ order.order_id }}"
+                                     style="width: 0%">
+                                    <span class="progress-text">Starting...</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <a href="{{ url_for('complete_order', order_id=order.order_id) }}" 
+                               class="btn btn-success">
+                                <i class="fas fa-check me-1"></i>Mark as Ready
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No orders being prepared</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Ready Orders -->
+<div class="card">
+    <div class="card-header text-white" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+        <h4 class="mb-0"><i class="fas fa-check-circle me-2"></i>Ready for Pickup</h4>
+    </div>
+    <div class="card-body">
+        {% if ready_orders %}
+        <div class="row">
+            {% for order in ready_orders %}
+            <div class="col-md-6 mb-3">
+                <div class="card border-success">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title">Order #{{ order.order_id }}</h5>
+                            <span class="badge bg-success">
+                                <i class="fas fa-bell me-1"></i>Notification Sent
+                            </span>
+                        </div>
+                        <p class="card-text">
+                            <strong>Customer:</strong> {{ order.customer_name }}<br>
+                            <strong>Amount:</strong> ₹{{ order.total_amount }}<br>
+                            <strong>Completed:</strong> {{ order.preparation_completed[:16] if order.preparation_completed else 'N/A' }}
+                        </p>
+                        
+                        <div class="alert alert-success mb-0">
+                            <i class="fas fa-check-circle me-1"></i>
+                            <strong>Ready for pickup!</strong> Customer has been notified.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-center text-muted">No ready orders</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+let timers = {};
+let timerIntervals = {};
+
+// Initialize timers on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeTimers();
+});
+
+function initializeTimers() {
+    const timerElements = document.querySelectorAll('.timer-display');
+    
+    timerElements.forEach(element => {
+        const orderId = element.id.split('-')[1];
+        const startTime = element.dataset.startTime;
+        const estimatedMinutes = parseInt(element.dataset.estimatedTime);
+        
+        if (startTime && startTime !== 'None') {
+            startTimer(orderId, startTime, estimatedMinutes);
+        }
+    });
+}
+
+function startTimer(orderId, startTime, estimatedMinutes) {
+    const startDateTime = new Date(startTime + 'Z'); // Add Z for UTC
+    const estimatedMs = estimatedMinutes * 60 * 1000;
+    
+    timerIntervals[orderId] = setInterval(() => {
+        const now = new Date();
+        const elapsed = now - startDateTime;
+        const progress = Math.min((elapsed / estimatedMs) * 100, 100);
+        
+        // Update timer display
+        const minutes = Math.floor(elapsed / 60000);
+        const seconds = Math.floor((elapsed % 60000) / 1000);
+        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        const timerText = document.querySelector(`#timer-${orderId} .timer-text`);
+        const progressBar = document.querySelector(`#progress-${orderId}`);
+        const progressText = document.querySelector(`#progress-${orderId} .progress-text`);
+        const timerBadge = document.querySelector(`#timer-${orderId} .badge`);
+        
+        if (timerText) timerText.textContent = timeString;
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+            
+            // Change color based on progress
+            if (progress < 50) {
+                progressBar.className = 'progress-bar bg-success progress-bar-striped progress-bar-animated timer-progress';
+                if (progressText) progressText.textContent = 'On Track';
+                if (timerBadge) timerBadge.className = 'badge bg-success';
+            } else if (progress < 80) {
+                progressBar.className = 'progress-bar bg-warning progress-bar-striped progress-bar-animated timer-progress';
+                if (progressText) progressText.textContent = 'Almost Ready';
+                if (timerBadge) timerBadge.className = 'badge bg-warning';
+            } else if (progress < 100) {
+                progressBar.className = 'progress-bar bg-danger progress-bar-striped progress-bar-animated timer-progress';
+                if (progressText) progressText.textContent = 'Should be Ready';
+                if (timerBadge) timerBadge.className = 'badge bg-danger';
+            } else {
+                progressBar.className = 'progress-bar bg-danger timer-progress';
+                if (progressText) progressText.textContent = 'Overdue!';
+                if (timerBadge) timerBadge.className = 'badge bg-danger';
+                
+                // Flash notification for overdue orders
+                if (progress === 100) {
+                    showNotification(`Order #${orderId} is overdue! Expected completion time exceeded.`, 'danger');
+                    playNotificationSound();
+                }
+            }
+        }
+        
+        // Show completion reminder at 90%
+        if (progress >= 90 && progress < 95) {
+            showNotification(`Order #${orderId} should be ready soon!`, 'warning');
+        }
+        
+    }, 1000);
+}
+
+function stopTimer(orderId) {
+    if (timerIntervals[orderId]) {
+        clearInterval(timerIntervals[orderId]);
+        delete timerIntervals[orderId];
+    }
+}
+
+function playNotificationSound() {
+    // Create audio context for notification sound
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.3;
+        
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (e) {
+        console.log('Audio notification not supported');
+    }
+}
+
+// Enhanced auto-refresh that preserves timer state
+let refreshTimeout;
+function scheduleRefresh() {
+    clearTimeout(refreshTimeout);
+    refreshTimeout = setTimeout(function() {
+        // Store current timer states before refresh
+        const timerStates = {};
+        Object.keys(timerIntervals).forEach(orderId => {
+            timerStates[orderId] = true;
+        });
+        
+        // Store in sessionStorage
+        sessionStorage.setItem('timerStates', JSON.stringify(timerStates));
+        location.reload();
+    }, 60000); // Refresh every minute instead of 30 seconds
+}
+
+// Restore timer states after refresh
+window.addEventListener('load', function() {
+    const storedStates = sessionStorage.getItem('timerStates');
+    if (storedStates) {
+        sessionStorage.removeItem('timerStates');
+    }
+    scheduleRefresh();
+});
+
+// Real-time notifications
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px; max-width: 400px;';
+    notification.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${type === 'danger' ? 'exclamation-triangle' : type === 'warning' ? 'clock' : type === 'success' ? 'check-circle' : 'info-circle'} me-2"></i>
+            <div class="flex-grow-1">${message}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 8000);
+}
+
+// Check for new orders periodically
+setInterval(function() {
+    fetch('/kitchen/check-new-orders')
+        .then(response => response.json())
+        .then(data => {
+            if (data.new_orders > 0) {
+                showNotification(`🔔 New order received! ${data.new_orders} pending orders.`, 'warning');
+                playNotificationSound();
+            }
+        })
+        .catch(error => console.log('Checking for new orders...'));
+}, 15000);
+
+// Add keyboard shortcuts for kitchen staff
+document.addEventListener('keydown', function(e) {
+    // Ctrl + R to refresh
+    if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        location.reload();
+    }
+    
+    // Ctrl + N to check new orders
+    if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        fetch('/kitchen/check-new-orders')
+            .then(response => response.json())
+            .then(data => {
+                showNotification(`📊 Status: ${data.new_orders || 0} pending orders`, 'info');
+            });
+    }
+});
+
+// Add visual indicators for urgent orders
+function highlightUrgentOrders() {
+    const progressBars = document.querySelectorAll('.timer-progress');
+    progressBars.forEach(bar => {
+        const width = parseFloat(bar.style.width);
+        if (width >= 100) {
+            bar.closest('.card').classList.add('border-danger', 'shadow');
+            bar.closest('.card').style.animation = 'pulse 2s infinite';
+        }
+    });
+}
+
+// Add CSS animation for urgent orders
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+    
+    .timer-display .badge {
+        transition: all 0.3s ease;
+    }
+    
+    .progress-bar {
+        transition: background-color 0.5s ease;
+    }
+`;
+document.head.appendChild(style);
+
+// Run urgent order check every 5 seconds
+setInterval(highlightUrgentOrders, 5000);
+</script>
+{% endblock %}

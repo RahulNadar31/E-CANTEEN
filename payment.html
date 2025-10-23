@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}Payment{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header text-white" style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);">
+                <h3 class="mb-0"><i class="fas fa-credit-card me-2"></i>Secure Payment</h3>
+            </div>
+            <div class="card-body">
+                <!-- Order Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Order ID:</strong> #{{ order.order_id }}</p>
+                                <p><strong>Order Time:</strong> {{ order.order_time[:16] }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Total Amount:</strong> <span class="h4 text-primary">₹{{ order.total_amount }}</span></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Order Items -->
+                        <div class="mt-3">
+                            <h6>Items Ordered:</h6>
+                            <ul class="list-unstyled">
+                                {% for item in order.items_parsed %}
+                                <li class="d-flex justify-content-between">
+                                    <span>{{ item.name }} (Qty: {{ item.quantity }})</span>
+                                    <span>₹{{ item.price * item.quantity }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            <hr>
+                            <div class="d-flex justify-content-between">
+                                <strong>Total:</strong>
+                                <strong>₹{{ order.total_amount }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Form -->
+                <form method="POST" action="{{ url_for('process_payment', order_id=order.order_id) }}">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Payment Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <!-- Payment Method Selection -->
+                            <div class="mb-4">
+                                <label class="form-label"><strong>Select Payment Method</strong></label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="payment_method" id="card" value="card" checked>
+                                            <label class="form-check-label" for="card">
+                                                <i class="fas fa-credit-card me-2"></i>Credit/Debit Card
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="payment_method" id="upi" value="upi">
+                                            <label class="form-check-label" for="upi">
+                                                <i class="fas fa-mobile-alt me-2"></i>UPI Payment
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card Payment Form -->
+                            <div id="cardForm">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="mb-3">
+                                            <label for="card_number" class="form-label">Card Number</label>
+                                            <input type="text" class="form-control" id="card_number" name="card_number" 
+                                                   placeholder="1234 5678 9012 3456" maxlength="19" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="cvv" class="form-label">CVV</label>
+                                            <input type="text" class="form-control" id="cvv" name="cvv" 
+                                                   placeholder="123" maxlength="3" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="expiry_date" class="form-label">Expiry Date</label>
+                                            <input type="text" class="form-control" id="expiry_date" name="expiry_date" 
+                                                   placeholder="MM/YY" maxlength="5" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="cardholder_name" class="form-label">Cardholder Name</label>
+                                            <input type="text" class="form-control" id="cardholder_name" name="cardholder_name" 
+                                                   placeholder="John Doe" required>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- UPI Payment Form -->
+                            <div id="upiForm" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="upi_id" class="form-label">UPI ID</label>
+                                    <input type="text" class="form-control" id="upi_id" name="upi_id" 
+                                           placeholder="yourname@paytm" value="{{ upi_collect_id }}" required>
+                                </div>
+                                {% if upi_pay_url %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    Pay to <strong>{{ upi_collect_id }}</strong>. On some devices you can <a href="{{ upi_pay_url }}">tap here to open UPI</a>.
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Security Notice -->
+                            <div class="alert alert-success">
+                                <i class="fas fa-shield-alt me-2"></i>
+                                <strong>Secure Payment:</strong> Your payment information is encrypted and secure.
+                            </div>
+
+                            <!-- Payment Buttons -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{{ url_for('student_dashboard') }}" class="btn btn-secondary me-md-2">
+                                    <i class="fas fa-arrow-left me-1"></i>Back to Cart
+                                </a>
+                                {% if rzp_key and rzp_order %}
+                                <button type="button" id="rzp-button" class="btn btn-success">
+                                    <i class="fas fa-credit-card me-2"></i>Pay ₹{{ order.total_amount }} (Razorpay)
+                                </button>
+                                {% else %}
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-credit-card me-2"></i>Pay ₹{{ order.total_amount }}
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <div class="mt-3 d-flex justify-content-end">
+                    <form method="POST" action="{{ url_for('assume_paid', order_id=order.order_id) }}" class="m-0">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-bolt me-2"></i>Mark Paid & Download Bill
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle payment forms
+document.addEventListener('DOMContentLoaded', function() {
+    const cardRadio = document.getElementById('card');
+    const upiRadio = document.getElementById('upi');
+    const cardForm = document.getElementById('cardForm');
+    const upiForm = document.getElementById('upiForm');
+
+    cardRadio.addEventListener('change', function() {
+        if (this.checked) {
+            cardForm.style.display = 'block';
+            upiForm.style.display = 'none';
+        }
+    });
+
+    upiRadio.addEventListener('change', function() {
+        if (this.checked) {
+            cardForm.style.display = 'none';
+            upiForm.style.display = 'block';
+        }
+    });
+
+    // Format card number
+    const cardNumber = document.getElementById('card_number');
+    cardNumber.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+        let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+        e.target.value = formattedValue;
+    });
+
+    // Format expiry date
+    const expiryDate = document.getElementById('expiry_date');
+    expiryDate.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length >= 2) {
+            value = value.substring(0, 2) + '/' + value.substring(2, 4);
+        }
+        e.target.value = value;
+    });
+
+    // Format CVV
+    const cvv = document.getElementById('cvv');
+    cvv.addEventListener('input', function(e) {
+        e.target.value = e.target.value.replace(/\D/g, '');
+    });
+
+    // Form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+        
+        if (paymentMethod === 'card') {
+            const cardNumber = document.getElementById('card_number').value.replace(/\s/g, '');
+            const expiryDate = document.getElementById('expiry_date').value;
+            const cvv = document.getElementById('cvv').value;
+            
+            if (cardNumber.length < 16) {
+                e.preventDefault();
+                alert('Please enter a valid 16-digit card number');
+                return;
+            }
+            
+            if (expiryDate.length < 5) {
+                e.preventDefault();
+                alert('Please enter a valid expiry date (MM/YY)');
+                return;
+            }
+            
+            if (cvv.length < 3) {
+                e.preventDefault();
+                alert('Please enter a valid 3-digit CVV');
+                return;
+            }
+        }
+        
+        // Show loading state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+        submitBtn.disabled = true;
+    });
+
+    // Razorpay Checkout
+    {% if rzp_key and rzp_order %}
+    const rzpBtn = document.getElementById('rzp-button');
+    if (rzpBtn) {
+        rzpBtn.addEventListener('click', function() {
+            const options = {
+                key: '{{ rzp_key }}',
+                amount: {{ (order.total_amount * 100)|int }},
+                currency: 'INR',
+                name: 'Cafnova',
+                description: 'Order #{{ order.order_id }}',
+                order_id: '{{ rzp_order.id }}',
+                handler: function (response){
+                    // Post to verify endpoint
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '{{ url_for('payment_verify') }}';
+                    const f1 = document.createElement('input'); f1.name = 'razorpay_payment_id'; f1.value = response.razorpay_payment_id; form.appendChild(f1);
+                    const f2 = document.createElement('input'); f2.name = 'razorpay_order_id'; f2.value = response.razorpay_order_id; form.appendChild(f2);
+                    const f3 = document.createElement('input'); f3.name = 'razorpay_signature'; f3.value = response.razorpay_signature; form.appendChild(f3);
+                    const f4 = document.createElement('input'); f4.name = 'order_id'; f4.value = '{{ order.order_id }}'; form.appendChild(f4);
+                    document.body.appendChild(form);
+                    form.submit();
+                },
+                prefill: {},
+                theme: { color: '#ff6b35' }
+            };
+            const rzp = new Razorpay(options);
+            rzp.open();
+        });
+    }
+    {% endif %}
+});
+</script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+{% endblock %}
